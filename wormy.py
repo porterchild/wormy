@@ -6,10 +6,11 @@
 import random, pygame, sys
 from pygame.locals import *
 
-FPS = 15
+FPS = 5
 WINDOWWIDTH = 720
 WINDOWHEIGHT = 540
 CELLSIZE = 20
+NUM_APPLES = 3
 assert WINDOWWIDTH % CELLSIZE == 0, "Window width must be a multiple of cell size."
 assert WINDOWHEIGHT % CELLSIZE == 0, "Window height must be a multiple of cell size."
 CELLWIDTH = int(WINDOWWIDTH / CELLSIZE)
@@ -55,8 +56,10 @@ def runGame():
                   {'x': startx - 2, 'y': starty}]
     direction = RIGHT
 
-    # Start the apple in a random place.
-    apple = getRandomLocation()
+    # Start the apples in a random place.
+    apples = []
+    for apple in range(0, NUM_APPLES):
+	apples.append(getRandomLocation())
 
     while True: # main game loop
         for event in pygame.event.get(): # event handling loop
@@ -82,11 +85,20 @@ def runGame():
                 return # game over
 
         # check if worm has eaten an apply
-        if wormCoords[HEAD]['x'] == apple['x'] and wormCoords[HEAD]['y'] == apple['y']:
-            # don't remove worm's tail segment
-            apple = getRandomLocation() # set a new apple somewhere
-        else:
-            del wormCoords[-1] # remove worm's tail segment
+	apple_eaten = False
+	for x, apple in enumerate(apples):
+	    if wormCoords[HEAD]['x'] == apple['x'] and wormCoords[HEAD]['y'] == apple['y']:
+	     # don't remove worm's tail segment
+	        apples[x] = getRandomLocation() # set a new apple somewhere
+	        apple_eaten = True
+	    
+
+        #modify tail if necessary 
+	if apple_eaten is True:
+	    pass
+	else:
+	    del wormCoords[-1] # remove worm's tail segment
+	
 
         # move the worm by adding a segment in the direction it is moving
         if direction == UP:
@@ -101,7 +113,8 @@ def runGame():
         DISPLAYSURF.fill(BGCOLOR)
         drawGrid()
         drawWorm(wormCoords)
-        drawApple(apple)
+	for apple in apples:
+	    drawApple(apple)
         drawScore(len(wormCoords) - 3)
         pygame.display.update()
         FPSCLOCK.tick(FPS)
