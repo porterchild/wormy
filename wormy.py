@@ -109,30 +109,30 @@ def runGame():
 	# worm 1
 	#edge
         if wormCoords[HEAD]['x'] == -1 or wormCoords[HEAD]['x'] == CELLWIDTH or wormCoords[HEAD]['y'] == -1 or wormCoords[HEAD]['y'] == CELLHEIGHT:
-	    penalty(wormCoords)
+	    penalty(wormCoords, wormCoords2, 1)
             return # game over
 	#itself
         for wormBody in wormCoords[1:]:
             if wormBody['x'] == wormCoords[HEAD]['x'] and wormBody['y'] == wormCoords[HEAD]['y']:
-		penalty(wormCoords)
+	        penalty(wormCoords, wormCoords2, 1)
                 return # game over
 	    #check if worm 2 has hit it
             if wormBody['x'] == wormCoords2[HEAD]['x'] and wormBody['y'] == wormCoords2[HEAD]['y']:
-	        penalty(wormCoords2)
+	        penalty(wormCoords2, wormCoords, 2)
                 return # game over
 	# worm 2
 	#edge
         if wormCoords2[HEAD]['x'] == -1 or wormCoords2[HEAD]['x'] == CELLWIDTH or wormCoords2[HEAD]['y'] == -1 or wormCoords2[HEAD]['y'] == CELLHEIGHT:
-	    penalty(wormCoords2)
+	    penalty(wormCoords2, wormCoords, 2)
             return # game over
 	#itself
         for wormBody in wormCoords2[1:]:
             if wormBody['x'] == wormCoords2[HEAD]['x'] and wormBody['y'] == wormCoords2[HEAD]['y']:
-	        penalty(wormCoords2)
+	        penalty(wormCoords2, wormCoords, 2)
                 return # game over
 	    #check if worm 1 has hit it
             if wormBody['x'] == wormCoords[HEAD]['x'] and wormBody['y'] == wormCoords[HEAD]['y']:
-		penalty(wormCoords)
+	        penalty(wormCoords, wormCoords2, 1)
                 return # game over
 
 
@@ -152,9 +152,13 @@ def runGame():
 	#worm 1
 	if apple_eaten is False:
 	    del wormCoords[-1] # remove worm's tail segment
+	else:
+	    apples.append(getRandomLocation()) #add an extra apple to the game	
 	#worm 2
 	if apple_eaten2 is False:
 	    del wormCoords2[-1] # remove worm's tail segment
+	else:
+	    apples.append(getRandomLocation()) #add an extra apple to the game
 	
 
         # move the worm by adding a segment in the direction it is moving
@@ -189,9 +193,18 @@ def runGame():
         pygame.display.update()
         FPSCLOCK.tick(FPS)
 
-def penalty(worm):#take 2 off
-	del worm[-1]
-	del worm[-1]
+def penalty(penalty_worm, free_worm, penalty_player):#take 2 off first argument worm
+    del penalty_worm[-1]
+    del penalty_worm[-1]
+    DISPLAYSURF.fill((  0,   0,   0))
+    drawGrid()
+    if penalty_player is 1:
+	    drawScore(len(penalty_worm) - 3, 1)
+	    drawScore(len(free_worm) - 3, 2)
+    elif penalty_player is 2:
+	    drawScore(len(penalty_worm) - 3, 2)
+	    drawScore(len(free_worm) - 3, 1)
+    pygame.display.update()
 
 def drawPressKeyMsg():
     pressKeySurf = BASICFONT.render('Player 1-ASDW, Player 2-arrow keys. Press a key to play.', True, DARKGRAY)
@@ -257,7 +270,7 @@ def showGameOverScreen():
     overSurf = gameOverFont.render('Over', True, WHITE)
     gameRect = gameSurf.get_rect()
     overRect = overSurf.get_rect()
-    gameRect.midtop = (WINDOWWIDTH / 2, 10)
+    gameRect.midtop = (WINDOWWIDTH / 2, 30)
     overRect.midtop = (WINDOWWIDTH / 2, gameRect.height + 10 + 25)
 
     DISPLAYSURF.blit(gameSurf, gameRect)
