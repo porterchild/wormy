@@ -6,11 +6,11 @@
 import random, pygame, sys
 from pygame.locals import *
 
-FPS = 6
+FPS = 9
 WINDOWWIDTH = 720
 WINDOWHEIGHT = 540
 CELLSIZE = 20
-NUM_APPLES = 3
+NUM_APPLES = 10
 assert WINDOWWIDTH % CELLSIZE == 0, "Window width must be a multiple of cell size."
 assert WINDOWHEIGHT % CELLSIZE == 0, "Window height must be a multiple of cell size."
 CELLWIDTH = int(WINDOWWIDTH / CELLSIZE)
@@ -37,11 +37,17 @@ HEAD = 0 # syntactic sugar: index of the worm's head
 def main():
     global FPSCLOCK, DISPLAYSURF, BASICFONT
 
+
     pygame.init()
     FPSCLOCK = pygame.time.Clock()
     DISPLAYSURF = pygame.display.set_mode((WINDOWWIDTH, WINDOWHEIGHT))
     BASICFONT = pygame.font.Font('freesansbold.ttf', 18)
     pygame.display.set_caption('Worry')
+
+    global autoOn, greenWins, blueWins 
+    autoOn = False
+    greenWins = 0
+    blueWins = 0
 
     showStartScreen()
     while True:
@@ -50,6 +56,10 @@ def main():
 
 
 def runGame():
+    global autoOn, greenWins, blueWins 
+    print "green to blue"
+    print greenWins
+    print blueWins
     # Set a random start point.
     #startx = random.randint(5, CELLWIDTH - 6)
     #starty = random.randint(5, CELLHEIGHT - 6)
@@ -104,6 +114,11 @@ def runGame():
                     direction2 = DOWN
                 elif event.key == K_ESCAPE:
                     terminate()
+                elif event.key == K_k:
+                    if autoOn is False:
+			autoOn = True
+		    elif autoOn is True:
+			autoOn = False
 
         # check if the worm has hit itself, the other worm, or the edge
 	# worm 1
@@ -163,6 +178,8 @@ def runGame():
 
         # move the worm by adding a segment in the direction it is moving
 	#worm 1
+	if autoOn is True:
+		direction = getAutoDirection(wormCoords, direction)
         if direction == UP:
             newHead = {'x': wormCoords[HEAD]['x'], 'y': wormCoords[HEAD]['y'] - 1}
         elif direction == DOWN:
@@ -173,6 +190,8 @@ def runGame():
             newHead = {'x': wormCoords[HEAD]['x'] + 1, 'y': wormCoords[HEAD]['y']}
         wormCoords.insert(0, newHead)
 	#worm 2
+	if autoOn is True:
+		direction2 = getAutoDirection(wormCoords2, direction2)
         if direction2 == UP:
             newHead2 = {'x': wormCoords2[HEAD]['x'], 'y': wormCoords2[HEAD]['y'] - 1}
         elif direction2 == DOWN:
@@ -193,23 +212,103 @@ def runGame():
         pygame.display.update()
         FPSCLOCK.tick(FPS)
 
+def getAutoDirection(wormCoords, currentDirection):
+	#corner cases first
+	if wormCoords[HEAD]['x'] == 0 and wormCoords[HEAD]['y'] == 0:#top left
+		if currentDirection is LEFT:
+			return DOWN
+		else:
+			return RIGHT
+	if wormCoords[HEAD]['x'] == 0 and wormCoords[HEAD]['y'] == CELLHEIGHT - 1:#bottom left
+		if currentDirection is LEFT:
+			return UP
+		else:
+			return RIGHT
+	if wormCoords[HEAD]['x'] == CELLWIDTH - 1 and wormCoords[HEAD]['y'] == 0:#top right
+		if currentDirection is RIGHT:
+			return DOWN
+		else:
+			return LEFT
+	if wormCoords[HEAD]['x'] == CELLWIDTH - 1 and wormCoords[HEAD]['y'] == CELLHEIGHT - 1:#bottom right
+		if currentDirection is RIGHT:
+			return UP
+		else:
+			return LEFT
+	
+	#left edge
+	if wormCoords[HEAD]['x'] == 0 and currentDirection is LEFT:
+		if random.randint(0, 100)%2 == 0:
+			return UP
+		else:
+			return DOWN 
+	#right edge
+	if wormCoords[HEAD]['x'] == CELLWIDTH - 1 and currentDirection is RIGHT:
+		if random.randint(0, 100)%2 == 0:
+			return UP
+		else:
+			return DOWN 
+	#top edge
+	if wormCoords[HEAD]['y'] == 0 and currentDirection is UP:
+		if random.randint(0, 100)%2 == 0:
+			return RIGHT
+		else:
+			return LEFT
+	#bottom edge
+	if wormCoords[HEAD]['y'] == CELLHEIGHT - 1 and currentDirection is DOWN:
+		if random.randint(0, 100)%2 == 0:
+			return RIGHT
+		else:
+			return LEFT
+	#small chance of a random turn
+	if random.randint(0, 100)%7 == 0:#change of a random turn
+		if random.randint(0, 100)%2 == 0:#chance for a vertical or horizontal turn
+			if random.randint(0, 100)%2 == 0:
+				if currentDirection is not LEFT and wormCoords[HEAD]['x'] != CELLWIDTH - 1:
+					return RIGHT
+			else:
+				if currentDirection is not RIGHT and wormCoords[HEAD]['x'] != 0:
+					return LEFT
+		else:
+			if random.randint(0, 100)%2 == 0:
+				if currentDirection is not DOWN and wormCoords[HEAD]['y'] != 0:
+					return UP
+			else:
+				if currentDirection is not UP and wormCoords[HEAD]['y'] != CELLHEIGHT - 1:
+					return DOWN
+	return currentDirection
+		
+
 def penalty(penalty_worm, free_worm, penalty_player):#take 2 off first argument worm
     del penalty_worm[-1]
     del penalty_worm[-1]
     DISPLAYSURF.fill((  0,   0,   0))
     drawGrid()
     if penalty_player is 1:
-	    drawScore(len(penalty_worm) - 3, 1)
-	    drawScore(len(free_worm) - 3, 2)
+	    p1Score = len(penalty_worm) -3
+	    p2Score = len(free_worm) - 3
+	    drawScore(p1Score, 1)
+	    drawScore(p2Score, 2)
+    	    updateScores(p1Score, p2Score)
     elif penalty_player is 2:
-	    drawScore(len(penalty_worm) - 3, 2)
-	    drawScore(len(free_worm) - 3, 1)
+	    p2Score = len(penalty_worm) -3
+	    p1Score = len(free_worm) - 3
+	    drawScore(p2Score, 2)
+	    drawScore(p1Score, 1)
+    	    updateScores(p1Score, p2Score)
     pygame.display.update()
 
+def updateScores(p1, p2):
+        global greenWins, blueWins 
+	if p1 > p2:
+		greenWins += 1
+	elif p2 > p1:
+		blueWins += 1
+	
+
 def drawPressKeyMsg():
-    pressKeySurf = BASICFONT.render('Player 1-ASDW, Player 2-arrow keys. Press a key to play.', True, DARKGRAY)
+    pressKeySurf = BASICFONT.render('Green-ASDW, Blue-arrow keys. Press k in game for autopilot blue', True, DARKGRAY)
     pressKeyRect = pressKeySurf.get_rect()
-    pressKeyRect.topleft = (WINDOWWIDTH - 500, WINDOWHEIGHT - 30)
+    pressKeyRect.topleft = (WINDOWWIDTH - 700, WINDOWHEIGHT - 30)
     DISPLAYSURF.blit(pressKeySurf, pressKeyRect)
 
 
@@ -280,6 +379,7 @@ def showGameOverScreen():
     pygame.time.wait(500)
     checkForKeyPress() # clear out any key presses in the event queue
 
+    return
     while True:
         if checkForKeyPress():
             pygame.event.get() # clear event queue
@@ -287,12 +387,12 @@ def showGameOverScreen():
 
 def drawScore(score, player):
     if player is 1:
-	    scoreSurf = BASICFONT.render('Player 1: %s' % (score), True, WHITE)
+	    scoreSurf = BASICFONT.render('Green: %s' % (score), True, WHITE)
 	    scoreRect = scoreSurf.get_rect()
 	    scoreRect.topleft = (120, 10)
 	    DISPLAYSURF.blit(scoreSurf, scoreRect)
     elif player is 2:
-	    scoreSurf = BASICFONT.render('Player 2: %s' % (score), True, WHITE)
+	    scoreSurf = BASICFONT.render('Blue: %s' % (score), True, WHITE)
 	    scoreRect = scoreSurf.get_rect()
 	    scoreRect.topright = (WINDOWWIDTH - 120, 10)
 	    DISPLAYSURF.blit(scoreSurf, scoreRect)
