@@ -11,6 +11,7 @@ WINDOWWIDTH = 720
 WINDOWHEIGHT = 540
 CELLSIZE = 20
 NUM_APPLES = 10
+mode = 3
 assert WINDOWWIDTH % CELLSIZE == 0, "Window width must be a multiple of cell size."
 assert WINDOWHEIGHT % CELLSIZE == 0, "Window height must be a multiple of cell size."
 CELLWIDTH = int(WINDOWWIDTH / CELLSIZE)
@@ -87,7 +88,7 @@ def runGame():
     # Start the apples in a random place.
     apples = []
     for apple in range(0, NUM_APPLES):
-	apples.append(getRandomLocation())
+	apples.append(Apple(mode))
 
     while True: # main game loop
         for event in pygame.event.get(): # event handling loop
@@ -151,29 +152,29 @@ def runGame():
                 return # game over
 
 
-        # check if worm has eaten an apply
+        # check if worm has eaten an apple
 	apple_eaten = False
 	apple_eaten2 = False
 	for x, apple in enumerate(apples):
 	    #worm1
-	    if wormCoords[HEAD]['x'] == apple['x'] and wormCoords[HEAD]['y'] == apple['y']:
-	        apples[x] = getRandomLocation() # set a new apple somewhere
+	    if wormCoords[HEAD]['x'] == apple.position['x'] and wormCoords[HEAD]['y'] == apple.position['y']:
+	        apples[x].position = getRandomLocation() # set a new apple somewhere
 	        apple_eaten = True
 	    #worm2
-	    if wormCoords2[HEAD]['x'] == apple['x'] and wormCoords2[HEAD]['y'] == apple['y']:
-	        apples[x] = getRandomLocation() # set a new apple somewhere
+	    if wormCoords2[HEAD]['x'] == apple.position['x'] and wormCoords2[HEAD]['y'] == apple.position['y']:
+	        apples[x].position = getRandomLocation() # set a new apple somewhere
 	        apple_eaten2 = True
         #modify tail if necessary 
 	#worm 1
 	if apple_eaten is False:
 	    del wormCoords[-1] # remove worm's tail segment
 	else:
-	    apples.append(getRandomLocation()) #add an extra apple to the game	
+	    apples.append(Apple(mode)) #add an extra apple to the game	
 	#worm 2
 	if apple_eaten2 is False:
 	    del wormCoords2[-1] # remove worm's tail segment
 	else:
-	    apples.append(getRandomLocation()) #add an extra apple to the game
+	    apples.append(Apple(mode)) #add an extra apple to the game
 	
 
         # move the worm by adding a segment in the direction it is moving
@@ -206,7 +207,9 @@ def runGame():
         drawWorm(wormCoords, 1)
         drawWorm(wormCoords2, 2)
 	for apple in apples:
-	    drawApple(apple)
+	    if apple.life is not 0:
+		drawApple(apple.position)
+	    apple.cycle()
         drawScore(len(wormCoords) - 3, 1)
         drawScore(len(wormCoords2) - 3, 2)
         pygame.display.update()
@@ -358,9 +361,45 @@ def terminate():
     pygame.quit()
     sys.exit()
 
+class Apple:
+    def __init__(self, mode):
+	if mode is 1:#uniformly distributed, infinite lifetime
+	    self.position = getRandomLocation() 
+	    self.life = 1
+	    def cycle():#life doesn't run out
+		pass
+	if mode is 2:#uniformly distributed, short lifetime
+	    self.position = getRandomLocation() 
+	    self.life = 50 #will last this many frames
+	    def cycle(self):
+		life -= 1
+	if mode is 3:#uniformly distributed, range of lifetimes
+	    self.position = getRandomLocation() 
+	    self.life = random.randint(30, 150) #will last this many frames
+	    def cycle(self):
+		life -= 1
+    def cycle(self):
+	if mode is 2 or 3:#finite life
+            self.life -= 1
+	if self.life is 0:
+	    self.position = getRandomLocation()
+	    if mode is 2 or 3:#assign new lifetimes	
+		if mode is 2:
+		    self.life = 50
+		else:#mode is 3 - range of lifetimes possible
+		    self.life = random.randint(30, 150)
 
-def getRandomLocation():
-    return {'x': random.randint(0, CELLWIDTH - 1), 'y': random.randint(0, CELLHEIGHT - 1)}
+def getRandomLocation(quadrant=0):
+    if quadrant is 0:
+    	return {'x': random.randint(0, CELLWIDTH - 1), 'y': random.randint(0, CELLHEIGHT - 1)}
+    elif quadrant is 1:
+	return {'x': random.randint(0, (CELLWIDTH - 1)/2), 'y': random.randint(0, (CELLHEIGHT - 1)/2)}
+    elif quadrant is 2:
+	return {'x': random.randint((CELLWIDTH - 1)/2, CELLWIDTH - 1), 'y': random.randint(0, (CELLHEIGHT - 1)/2)}
+    elif quadrant is 3:
+	return {'x': random.randint(0, (CELLWIDTH - 1)/2), 'y': random.randint((CELLHEIGHT - 1)/2, CELLHEIGHT - 1)}
+    elif quadrant is 4:
+	return {'x': random.randint((CELLWIDTH - 1)/2, CELLWIDTH - 1), 'y': random.randint((CELLHEIGHT - 1)/2, CELLHEIGHT - 1)}
 
 
 def showGameOverScreen():
