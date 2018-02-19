@@ -10,8 +10,7 @@ FPS = 9
 WINDOWWIDTH = 720
 WINDOWHEIGHT = 540
 CELLSIZE = 20
-NUM_APPLES = 10
-mode = 3
+NUM_APPLES = 30
 assert WINDOWWIDTH % CELLSIZE == 0, "Window width must be a multiple of cell size."
 assert WINDOWHEIGHT % CELLSIZE == 0, "Window height must be a multiple of cell size."
 CELLWIDTH = int(WINDOWWIDTH / CELLSIZE)
@@ -45,19 +44,25 @@ def main():
     BASICFONT = pygame.font.Font('freesansbold.ttf', 18)
     pygame.display.set_caption('Worry')
 
-    global autoOn, greenWins, blueWins 
+    global autoOn, greenWins, blueWins
     autoOn = False
     greenWins = 0
     blueWins = 0
+    global apple_mode, apple_quadrant
+    apple_mode = 6
+    apple_quadrant = 3
 
     showStartScreen()
+
     while True:
         runGame()
         showGameOverScreen()
 
 
 def runGame():
-    global autoOn, greenWins, blueWins 
+    global apple_mode, apple_quadrant
+
+    global autoOn, greenWins, blueWins
     print "green to blue"
     print greenWins
     print blueWins
@@ -88,7 +93,7 @@ def runGame():
     # Start the apples in a random place.
     apples = []
     for apple in range(0, NUM_APPLES):
-	apples.append(Apple(mode))
+	apples.append(Apple(apple_mode))
 
     while True: # main game loop
         for event in pygame.event.get(): # event handling loop
@@ -158,24 +163,25 @@ def runGame():
 	for x, apple in enumerate(apples):
 	    #worm1
 	    if wormCoords[HEAD]['x'] == apple.position['x'] and wormCoords[HEAD]['y'] == apple.position['y']:
-	        apples[x].position = getRandomLocation() # set a new apple somewhere
+	        #apples[x].position = getRandomLocation(apple_quadrant) # set a new apple somewhere
+		apples[x] = Apple(apple_mode)
+		#apples.append(Apple(apple_mode))
 	        apple_eaten = True
 	    #worm2
 	    if wormCoords2[HEAD]['x'] == apple.position['x'] and wormCoords2[HEAD]['y'] == apple.position['y']:
-	        apples[x].position = getRandomLocation() # set a new apple somewhere
+	        #apples[x].position = getRandomLocation(apple_quadrant) # set a new apple somewhere
+		apples[x] = Apple(apple_mode)
+		#apples.append(Apple(apple_mode))
 	        apple_eaten2 = True
-        #modify tail if necessary 
+
+        #modify tail if necessary
 	#worm 1
 	if apple_eaten is False:
 	    del wormCoords[-1] # remove worm's tail segment
-	else:
-	    apples.append(Apple(mode)) #add an extra apple to the game	
 	#worm 2
 	if apple_eaten2 is False:
 	    del wormCoords2[-1] # remove worm's tail segment
-	else:
-	    apples.append(Apple(mode)) #add an extra apple to the game
-	
+
 
         # move the worm by adding a segment in the direction it is moving
 	#worm 1
@@ -209,11 +215,15 @@ def runGame():
 	for apple in apples:
 	    if apple.life is not 0:
 		drawApple(apple.position)
-	    apple.cycle()
+	    apple_quadrant = apple.cycle(apple_quadrant)
         drawScore(len(wormCoords) - 3, 1)
         drawScore(len(wormCoords2) - 3, 2)
         pygame.display.update()
         FPSCLOCK.tick(FPS)
+class Worm:
+    def __init__(self, coordinates):
+	self.coords = coordinates
+    	
 
 def getAutoDirection(wormCoords, currentDirection):
 	#corner cases first
@@ -237,19 +247,19 @@ def getAutoDirection(wormCoords, currentDirection):
 			return UP
 		else:
 			return LEFT
-	
+
 	#left edge
 	if wormCoords[HEAD]['x'] == 0 and currentDirection is LEFT:
 		if random.randint(0, 100)%2 == 0:
 			return UP
 		else:
-			return DOWN 
+			return DOWN
 	#right edge
 	if wormCoords[HEAD]['x'] == CELLWIDTH - 1 and currentDirection is RIGHT:
 		if random.randint(0, 100)%2 == 0:
 			return UP
 		else:
-			return DOWN 
+			return DOWN
 	#top edge
 	if wormCoords[HEAD]['y'] == 0 and currentDirection is UP:
 		if random.randint(0, 100)%2 == 0:
@@ -279,7 +289,7 @@ def getAutoDirection(wormCoords, currentDirection):
 				if currentDirection is not UP and wormCoords[HEAD]['y'] != CELLHEIGHT - 1:
 					return DOWN
 	return currentDirection
-		
+
 
 def penalty(penalty_worm, free_worm, penalty_player):#take 2 off first argument worm
     del penalty_worm[-1]
@@ -301,12 +311,12 @@ def penalty(penalty_worm, free_worm, penalty_player):#take 2 off first argument 
     pygame.display.update()
 
 def updateScores(p1, p2):
-        global greenWins, blueWins 
+        global greenWins, blueWins
 	if p1 > p2:
 		greenWins += 1
 	elif p2 > p1:
 		blueWins += 1
-	
+
 
 def drawPressKeyMsg():
     pressKeySurf = BASICFONT.render('Green-ASDW, Blue-arrow keys. Press k in game for autopilot blue', True, DARKGRAY)
@@ -362,32 +372,43 @@ def terminate():
     sys.exit()
 
 class Apple:
-    def __init__(self, mode):
-	if mode is 1:#uniformly distributed, infinite lifetime
-	    self.position = getRandomLocation() 
+    def __init__(self, apple_mode):
+	if apple_mode is 1:#uniformly distributed, infinite lifetime
+	    self.position = getRandomLocation()
 	    self.life = 1
-	    def cycle():#life doesn't run out
-		pass
-	if mode is 2:#uniformly distributed, short lifetime
-	    self.position = getRandomLocation() 
+	if apple_mode is 2:#uniformly distributed, short lifetime
+	    self.position = getRandomLocation()
 	    self.life = 50 #will last this many frames
-	    def cycle(self):
-		life -= 1
-	if mode is 3:#uniformly distributed, range of lifetimes
-	    self.position = getRandomLocation() 
+	if apple_mode is 3:#uniformly distributed, range of lifetimes
+	    self.position = getRandomLocation()
 	    self.life = random.randint(30, 150) #will last this many frames
-	    def cycle(self):
-		life -= 1
-    def cycle(self):
-	if mode is 2 or 3:#finite life
+	if apple_mode is 4:#change between modes 1, 2, and 3
+	    self.position = getRandomLocation(apple_quadrant)
+	    self.life = random.randint(30, 150) #will last this many frames
+	if apple_mode is 5:#appear in single quadrant
+	    self.position = getRandomLocation(apple_quadrant)
+	    self.life = 1
+	if apple_mode is 6:#appear in changing quadrant
+	    self.position = getRandomLocation(apple_quadrant)
+	    self.life = 1
+    def cycle(self, apple_quad):
+	if apple_mode is 2 or apple_mode is 3:# finite life
+	    print self.life
             self.life -= 1
 	if self.life is 0:
 	    self.position = getRandomLocation()
-	    if mode is 2 or 3:#assign new lifetimes	
-		if mode is 2:
+	    if apple_mode is 2 or apple_mode is 3:#assign new lifetimes
+		if apple_mode is 2:
 		    self.life = 50
-		else:#mode is 3 - range of lifetimes possible
+		else:#apple_mode is 3 - range of lifetimes possible
 		    self.life = random.randint(30, 150)
+	if apple_mode is 6:
+	    if random.randint(0, 2000000)%2011 is 0:
+		print apple_quad
+		print "awefasdvwevawvasfwefasfe"
+		print apple_quad
+		apple_quad = random.randint(0, 2000000)%5
+	return apple_quad
 
 def getRandomLocation(quadrant=0):
     if quadrant is 0:
