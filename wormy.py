@@ -10,8 +10,10 @@ FPS = 9
 WINDOWWIDTH = 720
 WINDOWHEIGHT = 540
 CELLSIZE = 20
-NUM_APPLES = 30
-NUM_WORMS = 1
+NUM_APPLES = 10
+NUM_WORMS = 2
+NEIGHBORHOOD = 20
+TIME_LIMIT = 300
 assert WINDOWWIDTH % CELLSIZE == 0, "Window width must be a multiple of cell size."
 assert WINDOWHEIGHT % CELLSIZE == 0, "Window height must be a multiple of cell size."
 CELLWIDTH = int(WINDOWWIDTH / CELLSIZE)
@@ -52,6 +54,10 @@ def main():
     global apple_mode, apple_quadrant
     apple_mode = 6
     apple_quadrant = 3
+    global applesDisappeared, applesEaten, timeLapsed
+    timeLapsed = 0
+    applesEaten = 0
+    applesDisappeared = 0
 
     showStartScreen()
 
@@ -62,6 +68,10 @@ def main():
 
 def runGame():
     global apple_mode, apple_quadrant
+    global applesDisappeared, applesEaten, timeLapsed
+    applesDisappeared = 0
+    applesEaten = 0
+    timeLapsed = 0
 
     global autoOn, greenWins, blueWins
     print "green to blue"
@@ -136,47 +146,50 @@ def runGame():
 		    elif autoOn is True:
 			autoOn = False
 
-	deleted = False
 	for worm in worms:
+	    if len(worm.coords) is 0:
+		continue
             # check if the worm has hit itself, the other worm, or the edge
 
 	    #edge
             if worm.coords[HEAD]['x'] == -1 or worm.coords[HEAD]['x'] == CELLWIDTH or worm.coords[HEAD]['y'] == -1 or worm.coords[HEAD]['y'] == CELLHEIGHT:
-	        penalty(worm.coords, wormCoords2, 1)
 		print "deleted edge"
-		del worm
+		worm.coords = []
 		continue
 
 	    #itself
             for wormBody in worm.coords[1:]:
-		print "\n"
-		print "wormBody"
-		print wormBody
-		if deleted is True:
-		    break
+	        if len(worm.coords) is 0:
+		    continue
+		#print "\n"
+		#print "wormBody"
+		#print wormBody
                 if wormBody['x'] == worm.coords[HEAD]['x'] and wormBody['y'] == worm.coords[HEAD]['y']:
-	            penalty(worm.coords, wormCoords2, 1)
-		    del worm
+		    worm.coords = []
 		    print "deleted1"
-		    deleted = True
 		    continue
 	        #check if another has hit it
 		for wormHead in worms:
-		    print "\n"
-		    print "+++wormHead.coords"
-		    print wormHead.coords
+	            if len(wormHead.coords) is 0:
+		        continue
+		    #print "\n"
+		    #print "+++wormHead.coords"
+		    #print wormHead.coords
                     if wormBody['x'] == wormHead.coords[HEAD]['x'] and wormBody['y'] == wormHead.coords[HEAD]['y']:
-	                penalty(wormHead.coords, wormCoords, 2)
 		        print "deleted2"
-			print len(worms)
-			del wormHead
-			print len(worms)
-			continue
+			if len(worm.coords) > len(wormHead.coords):#kill the longer worm
+			    worm.coords = []
+			else:
+			    wormHead.coords = []
+
+	#get rid of empty worms
+	worms = [worm for worm in worms if len(worm.coords ) != 0]
 
 	#check if worm has eaten an apple
 	for worm in worms:
 	    for x, apple in enumerate(apples):
 		if worm.coords[HEAD]['x'] == apple.position['x'] and worm.coords[HEAD]['y'] == apple.position['y']:
+		    applesEaten += 1
 		    #apples[x].position = getRandomLocation(apple_quadrant) # set a new apple somewhere
 		    apples[x] = Apple(apple_mode)
 		    #apples.append(Apple(apple_mode))
@@ -186,10 +199,14 @@ def runGame():
         #modify tail if necessary
 	for worm in worms:
 	    if worm.apple_eaten is False:
-		del worm.coords[-1] 		#remove worm's tail segment
+		del worm.coords[-1] 		#remove worm's tail segment (not a penalty, just how movement works)
 	    else:
 		worm.apple_eaten = False 	#don't cut the tail, but reset the flag
 
+	#get rid of empty worms
+	worms = [worm for worm in worms if len(worm.coords ) != 0]
+	if len(worms) is 0:#everyone died, game over
+		return
 
         # move the worm by adding a segment in the direction it is moving
 	for worm in worms:
@@ -208,6 +225,7 @@ def runGame():
 
         DISPLAYSURF.fill(BGCOLOR)
         drawGrid()
+
 	for worm in worms:
 	    if len(worm.coords) is 8:
 		#split returns coordinates for posterior half of worm
@@ -215,11 +233,17 @@ def runGame():
 		worms.append(Worm(newCoords, newDirection))
 	    drawWorm(worm.coords, 1)
 	for apple in apples:
-	    if apple.life is not 0:
+	    if apple.life == 0:
+		applesDisappeared += 1
+	    else:
 		drawApple(apple.position)
 	    apple_quadrant = apple.cycle(apple_quadrant)
-	for worm in worms:
-	    drawScore(len(worm.coords) - 3, 1)
+
+	score = applesEaten - applesDisappeared
+	timeLapsed +=1
+	if timeLapsed == TIME_LIMIT:
+	    return
+	drawScore(score)
         pygame.display.update()
         FPSCLOCK.tick(FPS)
 
@@ -229,8 +253,8 @@ class Worm:
 	self.direction = startDirection
 	self.apple_eaten = False
     def split(self):
-	newWormCoords = self.coords[4:]
-	del self.coords[4:] 	
+	newWormCoords = self.coords[5:]
+	del self.coords[4:]
 	return newWormCoords, RIGHT
 
 def getAutoDirection(wormCoords, currentDirection, apples):
@@ -299,16 +323,66 @@ def getAutoDirection(wormCoords, currentDirection, apples):
 
 	#test, make it turn left if it passes an apple one space to the left of it
 	for apple in apples:
-	    if (wormCoords[HEAD]['x'] == apple.position['x'] + 1 or wormCoords[HEAD]['x'] == apple.position['x'] + 2) and wormCoords[HEAD]['y'] == apple.position['y']:
-		return LEFT
-	    elif (wormCoords[HEAD]['x'] == apple.position['x'] - 1 or wormCoords[HEAD]['x'] == apple.position['x'] - 2) and wormCoords[HEAD]['y'] == apple.position['y']:
-		return RIGHT
-	    elif wormCoords[HEAD]['x'] == apple.position['x'] and (wormCoords[HEAD]['y'] == apple.position['y'] + 1 or wormCoords[HEAD]['y'] == apple.position['y'] + 2): 
-		return UP
-	    elif wormCoords[HEAD]['x'] == apple.position['x'] and (wormCoords[HEAD]['y'] == apple.position['y'] - 1 or wormCoords[HEAD]['y'] == apple.position['y'] - 2): 
-		return DOWN
+	    for offset in xrange(1, NEIGHBORHOOD+1):
+		if wormCoords[HEAD]['x'] == apple.position['x'] + offset and wormCoords[HEAD]['y'] == apple.position['y']:
+		    return LEFT
+	    	if wormCoords[HEAD]['x'] == apple.position['x'] - offset and wormCoords[HEAD]['y'] == apple.position['y']:
+		    return RIGHT
+	    	if wormCoords[HEAD]['x'] == apple.position['x'] and wormCoords[HEAD]['y'] == apple.position['y'] + offset:
+		    return UP
+	    	if wormCoords[HEAD]['x'] == apple.position['x'] and wormCoords[HEAD]['y'] == apple.position['y'] - offset:
+		    return DOWN
 	return currentDirection
 
+class Apple:
+    def __init__(self, apple_mode):
+	if apple_mode is 1:#uniformly distributed, infinite lifetime
+	    self.position = getRandomLocation()
+	    self.life = 1
+	if apple_mode is 2:#uniformly distributed, short lifetime
+	    self.position = getRandomLocation()
+	    self.life = 50 #will last this many frames
+	if apple_mode is 3:#uniformly distributed, range of lifetimes
+	    self.position = getRandomLocation()
+	    self.life = random.randint(30, 150) #will last this many frames
+	if apple_mode is 4:#change between modes 1, 2, and 3
+	    self.position = getRandomLocation(apple_quadrant)
+	    self.life = random.randint(30, 150) #will last this many frames
+	if apple_mode is 5:#appear in single quadrant
+	    self.position = getRandomLocation(apple_quadrant)
+	    self.life = 1
+	if apple_mode is 6:#appear in changing quadrant
+	    self.position = getRandomLocation(apple_quadrant)
+	    self.life = 1
+    def cycle(self, apple_quad):
+	if apple_mode is 2 or apple_mode is 3:# finite life
+            self.life -= 1
+	if self.life is -1:
+	    self.position = getRandomLocation()
+	    if apple_mode is 2 or apple_mode is 3:#assign new lifetimes
+		if apple_mode is 2:
+		    self.life = 50
+		else:#apple_mode is 3 - range of lifetimes possible
+		    self.life = random.randint(30, 150)
+	if apple_mode is 6:
+	    if random.randint(0, 2000000)%2011 is 0:
+		print apple_quad
+		print "randomly changing apple spawing quadrant"
+		print apple_quad
+		apple_quad = random.randint(0, 2000000)%5
+	return apple_quad
+
+def getRandomLocation(quadrant=0):
+    if quadrant is 0:
+    	return {'x': random.randint(0, CELLWIDTH - 1), 'y': random.randint(0, CELLHEIGHT - 1)}
+    elif quadrant is 1:
+	return {'x': random.randint(0, (CELLWIDTH - 1)/2), 'y': random.randint(0, (CELLHEIGHT - 1)/2)}
+    elif quadrant is 2:
+	return {'x': random.randint((CELLWIDTH - 1)/2, CELLWIDTH - 1), 'y': random.randint(0, (CELLHEIGHT - 1)/2)}
+    elif quadrant is 3:
+	return {'x': random.randint(0, (CELLWIDTH - 1)/2), 'y': random.randint((CELLHEIGHT - 1)/2, CELLHEIGHT - 1)}
+    elif quadrant is 4:
+	return {'x': random.randint((CELLWIDTH - 1)/2, CELLWIDTH - 1), 'y': random.randint((CELLHEIGHT - 1)/2, CELLHEIGHT - 1)}
 
 def penalty(penalty_worm, free_worm, penalty_player):#take 2 off first argument worm
     print "penalty on ", penalty_player
@@ -391,55 +465,6 @@ def terminate():
     pygame.quit()
     sys.exit()
 
-class Apple:
-    def __init__(self, apple_mode):
-	if apple_mode is 1:#uniformly distributed, infinite lifetime
-	    self.position = getRandomLocation()
-	    self.life = 1
-	if apple_mode is 2:#uniformly distributed, short lifetime
-	    self.position = getRandomLocation()
-	    self.life = 50 #will last this many frames
-	if apple_mode is 3:#uniformly distributed, range of lifetimes
-	    self.position = getRandomLocation()
-	    self.life = random.randint(30, 150) #will last this many frames
-	if apple_mode is 4:#change between modes 1, 2, and 3
-	    self.position = getRandomLocation(apple_quadrant)
-	    self.life = random.randint(30, 150) #will last this many frames
-	if apple_mode is 5:#appear in single quadrant
-	    self.position = getRandomLocation(apple_quadrant)
-	    self.life = 1
-	if apple_mode is 6:#appear in changing quadrant
-	    self.position = getRandomLocation(apple_quadrant)
-	    self.life = 1
-    def cycle(self, apple_quad):
-	if apple_mode is 2 or apple_mode is 3:# finite life
-            self.life -= 1
-	if self.life is 0:
-	    self.position = getRandomLocation()
-	    if apple_mode is 2 or apple_mode is 3:#assign new lifetimes
-		if apple_mode is 2:
-		    self.life = 50
-		else:#apple_mode is 3 - range of lifetimes possible
-		    self.life = random.randint(30, 150)
-	if apple_mode is 6:
-	    if random.randint(0, 2000000)%2011 is 0:
-		print apple_quad
-		print "randomly changing apple spawing quadrant"
-		print apple_quad
-		apple_quad = random.randint(0, 2000000)%5
-	return apple_quad
-
-def getRandomLocation(quadrant=0):
-    if quadrant is 0:
-    	return {'x': random.randint(0, CELLWIDTH - 1), 'y': random.randint(0, CELLHEIGHT - 1)}
-    elif quadrant is 1:
-	return {'x': random.randint(0, (CELLWIDTH - 1)/2), 'y': random.randint(0, (CELLHEIGHT - 1)/2)}
-    elif quadrant is 2:
-	return {'x': random.randint((CELLWIDTH - 1)/2, CELLWIDTH - 1), 'y': random.randint(0, (CELLHEIGHT - 1)/2)}
-    elif quadrant is 3:
-	return {'x': random.randint(0, (CELLWIDTH - 1)/2), 'y': random.randint((CELLHEIGHT - 1)/2, CELLHEIGHT - 1)}
-    elif quadrant is 4:
-	return {'x': random.randint((CELLWIDTH - 1)/2, CELLWIDTH - 1), 'y': random.randint((CELLHEIGHT - 1)/2, CELLHEIGHT - 1)}
 
 
 def showGameOverScreen():
@@ -464,17 +489,11 @@ def showGameOverScreen():
             pygame.event.get() # clear event queue
             return
 
-def drawScore(score, player):
-    if player is 1:
-	    scoreSurf = BASICFONT.render('Green: %s' % (score), True, WHITE)
-	    scoreRect = scoreSurf.get_rect()
-	    scoreRect.topleft = (120, 10)
-	    DISPLAYSURF.blit(scoreSurf, scoreRect)
-    elif player is 2:
-	    scoreSurf = BASICFONT.render('Blue: %s' % (score), True, WHITE)
-	    scoreRect = scoreSurf.get_rect()
-	    scoreRect.topright = (WINDOWWIDTH - 120, 10)
-	    DISPLAYSURF.blit(scoreSurf, scoreRect)
+def drawScore(score):
+    scoreSurf = BASICFONT.render('Score: %s' % (score), True, WHITE)
+    scoreRect = scoreSurf.get_rect()
+    scoreRect.topleft = (120, 10)
+    DISPLAYSURF.blit(scoreSurf, scoreRect)
 
 
 def drawWorm(wormCoords, player=1):
