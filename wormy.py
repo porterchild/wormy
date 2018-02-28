@@ -10,10 +10,11 @@ FPS = 9
 WINDOWWIDTH = 720
 WINDOWHEIGHT = 540
 CELLSIZE = 20
-NUM_APPLES = 10
+NUM_APPLES = 5
 NUM_WORMS = 2
-NEIGHBORHOOD = 20
+NEIGHBORHOOD = 7
 TIME_LIMIT = 300
+CENTRALIZED = False
 assert WINDOWWIDTH % CELLSIZE == 0, "Window width must be a multiple of cell size."
 assert WINDOWHEIGHT % CELLSIZE == 0, "Window height must be a multiple of cell size."
 CELLWIDTH = int(WINDOWWIDTH / CELLSIZE)
@@ -58,6 +59,9 @@ def main():
     timeLapsed = 0
     applesEaten = 0
     applesDisappeared = 0
+    global central_destination, frenzy_remaining
+    central_destination = {}
+    frenzy_remaining = 0
 
     showStartScreen()
 
@@ -74,9 +78,7 @@ def runGame():
     timeLapsed = 0
 
     global autoOn, greenWins, blueWins
-    print "green to blue"
-    print greenWins
-    print blueWins
+    global central_destination, frenzy_remaining
     # Set a random start point.
     #startx = random.randint(5, CELLWIDTH - 6)
     #starty = random.randint(5, CELLHEIGHT - 6)
@@ -153,7 +155,6 @@ def runGame():
 
 	    #edge
             if worm.coords[HEAD]['x'] == -1 or worm.coords[HEAD]['x'] == CELLWIDTH or worm.coords[HEAD]['y'] == -1 or worm.coords[HEAD]['y'] == CELLHEIGHT:
-		print "deleted edge"
 		worm.coords = []
 		continue
 
@@ -166,7 +167,6 @@ def runGame():
 		#print wormBody
                 if wormBody['x'] == worm.coords[HEAD]['x'] and wormBody['y'] == worm.coords[HEAD]['y']:
 		    worm.coords = []
-		    print "deleted1"
 		    continue
 	        #check if another has hit it
 		for wormHead in worms:
@@ -176,14 +176,13 @@ def runGame():
 		    #print "+++wormHead.coords"
 		    #print wormHead.coords
                     if wormBody['x'] == wormHead.coords[HEAD]['x'] and wormBody['y'] == wormHead.coords[HEAD]['y']:
-		        print "deleted2"
 			if len(worm.coords) > len(wormHead.coords):#kill the longer worm
 			    worm.coords = []
 			else:
 			    wormHead.coords = []
 
 	#get rid of empty worms
-	worms = [worm for worm in worms if len(worm.coords ) != 0]
+	worms = [worm for worm in worms if len(worm.coords) != 0]
 
 	#check if worm has eaten an apple
 	for worm in worms:
@@ -194,6 +193,24 @@ def runGame():
 		    apples[x] = Apple(apple_mode)
 		    #apples.append(Apple(apple_mode))
 		    worm.apple_eaten = True
+
+	    #add code to increase probablity of entering frenzy mode (for centralized controller)
+	    if CENTRALIZED:
+		print worm.frenzy_ratio, len(apples)
+	        if worm.frenzy_ratio > 0.5:
+		    worm.frenzy_ratio *= 0.9 #decreases every cycle
+	        if worm.apple_eaten is True: #increases if an apple was eaten
+		    worm.frenzy_ratio *= 1.8 	
+	        if worm.frenzy_ratio > len(apples)/len(apples): #high enough to be considered a frenzy
+		    #set destination for other worms 
+		    central_destination = worm.coords[HEAD]	
+		    frenzy_remaining = len(worms) * 30
+		elif frenzy_remaining > 0:
+		    frenzy_remaining -= 1
+		if frenzy_remaining is 0:
+		    central_destination = {}
+		print frenzy_remaining
+	        print worm.frenzy_ratio
 
 
         #modify tail if necessary
@@ -252,8 +269,9 @@ class Worm:
 	self.coords = coordinates
 	self.direction = startDirection
 	self.apple_eaten = False
+	self.frenzy_ratio = 1 #whether I'm  eating a lot of apples at the moment - this is for the centralized controller
     def split(self):
-	newWormCoords = self.coords[5:]
+	newWormCoords = self.coords[6:]
 	del self.coords[4:]
 	return newWormCoords, RIGHT
 
@@ -304,34 +322,50 @@ def getAutoDirection(wormCoords, currentDirection, apples):
 			return RIGHT
 		else:
 			return LEFT
-	# #small chance of a random turn
-	# if random.randint(0, 100)%7 == 0:#change of a random turn
-	# 	if random.randint(0, 100)%2 == 0:#chance for a vertical or horizontal turn
-	# 		if random.randint(0, 100)%2 == 0:
-	# 			if currentDirection is not LEFT and wormCoords[HEAD]['x'] != CELLWIDTH - 1:
-	# 				return RIGHT
-	# 		else:
-	# 			if currentDirection is not RIGHT and wormCoords[HEAD]['x'] != 0:
-	# 				return LEFT
-	# 	else:
-	# 		if random.randint(0, 100)%2 == 0:
-	# 			if currentDirection is not DOWN and wormCoords[HEAD]['y'] != 0:
-	# 				return UP
-	# 		else:
-	# 			if currentDirection is not UP and wormCoords[HEAD]['y'] != CELLHEIGHT - 1:
-	# 				return DOWN
 
-	#test, make it turn left if it passes an apple one space to the left of it
+	# make it turn left if it passes an apple on the left, etc
 	for apple in apples:
 	    for offset in xrange(1, NEIGHBORHOOD+1):
-		if wormCoords[HEAD]['x'] == apple.position['x'] + offset and wormCoords[HEAD]['y'] == apple.position['y']:
+		if wormCoords[HEAD]['x'] == apple.position['x'] + offset and wormCoords[HEAD]['y'] == apple.position['y'] and currentDirection is not RIGHT:
 		    return LEFT
-	    	if wormCoords[HEAD]['x'] == apple.position['x'] - offset and wormCoords[HEAD]['y'] == apple.position['y']:
+	    	if wormCoords[HEAD]['x'] == apple.position['x'] - offset and wormCoords[HEAD]['y'] == apple.position['y'] and currentDirection is not LEFT:
 		    return RIGHT
-	    	if wormCoords[HEAD]['x'] == apple.position['x'] and wormCoords[HEAD]['y'] == apple.position['y'] + offset:
+	    	if wormCoords[HEAD]['x'] == apple.position['x'] and wormCoords[HEAD]['y'] == apple.position['y'] + offset and currentDirection is not DOWN:
 		    return UP
-	    	if wormCoords[HEAD]['x'] == apple.position['x'] and wormCoords[HEAD]['y'] == apple.position['y'] - offset:
+	    	if wormCoords[HEAD]['x'] == apple.position['x'] and wormCoords[HEAD]['y'] == apple.position['y'] - offset and currentDirection is not UP:
 		    return DOWN
+	#if centralized control is activated, go in the direction of the frenzy if there is one
+	if CENTRALIZED:
+	    if 'x' in central_destination:
+		print central_destination
+		if random.randint(0, 20)%2 == 0:#priority to lateral movement
+	    	    if wormCoords[HEAD]['x'] < central_destination['x'] and currentDirection is not LEFT:
+		        return RIGHT
+	    	    if wormCoords[HEAD]['x'] > central_destination['x'] and currentDirection is not RIGHT:
+		        return LEFT
+		else:#priority to longitudinal movement
+	    	    if wormCoords[HEAD]['y'] < central_destination['y'] and currentDirection is not UP:
+		        return DOWN
+	    	    if wormCoords[HEAD]['y'] < central_destination['y'] and currentDirection is not DOWN:
+		        return UP
+	    
+
+	#small chance of a random turn
+	if random.randint(0, 100)%7 == 0:#change of a random turn
+		if random.randint(0, 100)%2 == 0:#chance for a vertical or horizontal turn
+			if random.randint(0, 100)%2 == 0:
+				if currentDirection is not LEFT and wormCoords[HEAD]['x'] != CELLWIDTH - 1:
+					return RIGHT
+			else:
+				if currentDirection is not RIGHT and wormCoords[HEAD]['x'] != 0:
+					return LEFT
+		else:
+			if random.randint(0, 100)%2 == 0:
+				if currentDirection is not DOWN and wormCoords[HEAD]['y'] != 0:
+					return UP
+			else:
+				if currentDirection is not UP and wormCoords[HEAD]['y'] != CELLHEIGHT - 1:
+					return DOWN
 	return currentDirection
 
 class Apple:
@@ -368,8 +402,8 @@ class Apple:
 	    if random.randint(0, 2000000)%2011 is 0:
 		print apple_quad
 		print "randomly changing apple spawing quadrant"
-		print apple_quad
 		apple_quad = random.randint(0, 2000000)%5
+		print apple_quad
 	return apple_quad
 
 def getRandomLocation(quadrant=0):
