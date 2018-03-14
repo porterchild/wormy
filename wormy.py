@@ -3,18 +3,19 @@
 # http://inventwithpython.com/pygame
 # Released under a "Simplified BSD" license
 
-import random, pygame, sys
+import random, pygame, sys, math
 from pygame.locals import *
 
-FPS = 9
+#FPS = 40
+FPS = 4
 WINDOWWIDTH = 720
 WINDOWHEIGHT = 540
 CELLSIZE = 20
-NUM_APPLES = 5
+NUM_APPLES = 10
 NUM_WORMS = 2
-NEIGHBORHOOD = 7
-TIME_LIMIT = 300
-CENTRALIZED = False
+NEIGHBORHOOD = 5
+TIME_LIMIT = 1000
+CENTRALIZED = True
 assert WINDOWWIDTH % CELLSIZE == 0, "Window width must be a multiple of cell size."
 assert WINDOWHEIGHT % CELLSIZE == 0, "Window height must be a multiple of cell size."
 CELLWIDTH = int(WINDOWWIDTH / CELLSIZE)
@@ -48,12 +49,12 @@ def main():
     BASICFONT = pygame.font.Font('freesansbold.ttf', 18)
     pygame.display.set_caption('Worry')
 
-    global autoOn, greenWins, blueWins
+    global autoOn, total_score, total_runs
     autoOn = True
-    greenWins = 0
-    blueWins = 0
+    total_score = 0
+    total_runs = 0
     global apple_mode, apple_quadrant
-    apple_mode = 6
+    apple_mode = 7
     apple_quadrant = 3
     global applesDisappeared, applesEaten, timeLapsed
     timeLapsed = 0
@@ -65,19 +66,32 @@ def main():
 
     showStartScreen()
 
-    while True:
-        runGame()
-        showGameOverScreen()
+    #while True:
+    for app_mode in xrange(1, 8):#try all apple modes
+	apple_mode = app_mode
+	print "\n\napple mode:", apple_mode
+	for centralized in xrange(1,2):#try centralized and decentralized
+	    if centralized is 0:
+		CENTRALIZED = False
+	    else:
+		CENTRALIZED = True
+	    print "Centralized:", CENTRALIZED
+	    #for neighborhood in xrange(3,
+	    for run in xrange(0,20):#trials
+                runGame()
+                showGameOverScreen()
+	    print "Average Score:", total_score/(total_runs * 1.0)
+    	    total_score = 0
+            total_runs = 0
 
 
 def runGame():
     global apple_mode, apple_quadrant
-    global applesDisappeared, applesEaten, timeLapsed
     applesDisappeared = 0
     applesEaten = 0
     timeLapsed = 0
 
-    global autoOn, greenWins, blueWins
+    global autoOn, total_score, total_runs
     global central_destination, frenzy_remaining
     # Set a random start point.
     #startx = random.randint(5, CELLWIDTH - 6)
@@ -196,21 +210,18 @@ def runGame():
 
 	    #add code to increase probablity of entering frenzy mode (for centralized controller)
 	    if CENTRALIZED:
-		print worm.frenzy_ratio, len(apples)
 	        if worm.frenzy_ratio > 0.5:
 		    worm.frenzy_ratio *= 0.9 #decreases every cycle
 	        if worm.apple_eaten is True: #increases if an apple was eaten
-		    worm.frenzy_ratio *= 1.8 	
+		    worm.frenzy_ratio *= 1.8
 	        if worm.frenzy_ratio > len(apples)/len(apples): #high enough to be considered a frenzy
-		    #set destination for other worms 
-		    central_destination = worm.coords[HEAD]	
-		    frenzy_remaining = len(worms) * 30
+		    #set destination for other worms
+		    central_destination = worm.coords[HEAD]
+		    frenzy_remaining = len(worms) * 35
 		elif frenzy_remaining > 0:
 		    frenzy_remaining -= 1
 		if frenzy_remaining is 0:
 		    central_destination = {}
-		print frenzy_remaining
-	        print worm.frenzy_ratio
 
 
         #modify tail if necessary
@@ -222,8 +233,13 @@ def runGame():
 
 	#get rid of empty worms
 	worms = [worm for worm in worms if len(worm.coords ) != 0]
-	if len(worms) is 0:#everyone died, game over
-		return
+	if len(worms) is 0:#everyone died
+            startx = random.randint(5, CELLWIDTH - 5)
+            starty = random.randint(5, CELLHEIGHT - 5)
+    	    coordinates = [{'x': startx,     'y': starty},
+                  	  {'x': startx - 1, 'y': starty},
+                  	  {'x': startx - 2, 'y': starty}]
+	    worms.append(Worm(coordinates, RIGHT))
 
         # move the worm by adding a segment in the direction it is moving
 	for worm in worms:
@@ -256,9 +272,13 @@ def runGame():
 		drawApple(apple.position)
 	    apple_quadrant = apple.cycle(apple_quadrant)
 
-	score = applesEaten - applesDisappeared
+	#score = (applesEaten - applesDisappeared)/NUM_APPLES
+	score = (applesEaten - applesDisappeared)
 	timeLapsed +=1
 	if timeLapsed == TIME_LIMIT:
+	    total_runs += 1
+	    total_score += score
+	    print "Score:", score
 	    return
 	drawScore(score)
         pygame.display.update()
@@ -276,6 +296,7 @@ class Worm:
 	return newWormCoords, RIGHT
 
 def getAutoDirection(wormCoords, currentDirection, apples):
+	#collisions
 	#corner cases first
 	if wormCoords[HEAD]['x'] == 0 and wormCoords[HEAD]['y'] == 0:#top left
 		if currentDirection is LEFT:
@@ -298,6 +319,63 @@ def getAutoDirection(wormCoords, currentDirection, apples):
 		else:
 			return LEFT
 
+	#if centralized control is activated, go in the direction of the frenzy if there is one
+	if CENTRALIZED:
+	    #if random.randint(0, 2000)%3 == 0:#artificial limitation - simulates communication latency
+	#	pass
+	    # if 'x' in central_destination:
+		# if random.randint(0, 20)%2 == 0:#priority to lateral movement
+	    # 	    if wormCoords[HEAD]['x'] < central_destination['x'] and currentDirection is not LEFT:
+		#         return RIGHT
+	    # 	    if wormCoords[HEAD]['x'] > central_destination['x'] and currentDirection is not RIGHT:
+		#         return LEFT
+		# else:#priority to longitudinal movement
+	    # 	    if wormCoords[HEAD]['y'] < central_destination['y'] and currentDirection is not UP:
+		#         return DOWN
+	    # 	    if wormCoords[HEAD]['y'] > central_destination['y'] and currentDirection is not DOWN:
+		#         return UP
+	    #scan through apples, chase the closest one
+	    closest_euclid = 1000
+	    destination = {}
+	    for apple in apples:
+		dist = math.sqrt(abs((wormCoords[HEAD]['x'] - apple.position['x'])**2) + abs((wormCoords[HEAD]['y'] - apple.position['y'])**2))
+		print "dist", dist
+		if dist < closest_euclid:
+		    closest_euclid = dist
+		    destination['x'] = apple.position['x']
+		    destination['y'] = apple.position['y']
+		    print "destination",  destination
+
+
+	    if 'x' in destination:
+		if random.randint(0, 20)%2 == 0:#priority to lateral movement
+	    	    if wormCoords[HEAD]['x'] < destination['x'] and currentDirection is not LEFT:
+		        return RIGHT
+	    	    if wormCoords[HEAD]['x'] > destination['x'] and currentDirection is not RIGHT:
+		        return LEFT
+		else:#priority to longitudinal movement
+	    	    if wormCoords[HEAD]['y'] < destination['y'] and currentDirection is not UP:
+		        return DOWN
+	    	    if wormCoords[HEAD]['y'] > destination['y'] and currentDirection is not DOWN:
+		        return UP
+
+	if CENTRALIZED:
+	    print "Death to centralizatoin"
+	    return currentDirection
+
+
+	# make it turn left if it passes an apple on the left, etc
+	for apple in apples:
+	    for offset in xrange(1, NEIGHBORHOOD+1):
+		if wormCoords[HEAD]['x'] == apple.position['x'] + offset and wormCoords[HEAD]['y'] == apple.position['y'] and currentDirection is not RIGHT:
+		    return LEFT
+	    	if wormCoords[HEAD]['x'] == apple.position['x'] - offset and wormCoords[HEAD]['y'] == apple.position['y'] and currentDirection is not LEFT:
+		    return RIGHT
+	    	if wormCoords[HEAD]['x'] == apple.position['x'] and wormCoords[HEAD]['y'] == apple.position['y'] + offset and currentDirection is not DOWN:
+		    return UP
+	    	if wormCoords[HEAD]['x'] == apple.position['x'] and wormCoords[HEAD]['y'] == apple.position['y'] - offset and currentDirection is not UP:
+		    return DOWN
+	#collisions continued
 	#left edge
 	if wormCoords[HEAD]['x'] == 0 and currentDirection is LEFT:
 		if random.randint(0, 100)%2 == 0:
@@ -323,35 +401,10 @@ def getAutoDirection(wormCoords, currentDirection, apples):
 		else:
 			return LEFT
 
-	# make it turn left if it passes an apple on the left, etc
-	for apple in apples:
-	    for offset in xrange(1, NEIGHBORHOOD+1):
-		if wormCoords[HEAD]['x'] == apple.position['x'] + offset and wormCoords[HEAD]['y'] == apple.position['y'] and currentDirection is not RIGHT:
-		    return LEFT
-	    	if wormCoords[HEAD]['x'] == apple.position['x'] - offset and wormCoords[HEAD]['y'] == apple.position['y'] and currentDirection is not LEFT:
-		    return RIGHT
-	    	if wormCoords[HEAD]['x'] == apple.position['x'] and wormCoords[HEAD]['y'] == apple.position['y'] + offset and currentDirection is not DOWN:
-		    return UP
-	    	if wormCoords[HEAD]['x'] == apple.position['x'] and wormCoords[HEAD]['y'] == apple.position['y'] - offset and currentDirection is not UP:
-		    return DOWN
-	#if centralized control is activated, go in the direction of the frenzy if there is one
-	if CENTRALIZED:
-	    if 'x' in central_destination:
-		print central_destination
-		if random.randint(0, 20)%2 == 0:#priority to lateral movement
-	    	    if wormCoords[HEAD]['x'] < central_destination['x'] and currentDirection is not LEFT:
-		        return RIGHT
-	    	    if wormCoords[HEAD]['x'] > central_destination['x'] and currentDirection is not RIGHT:
-		        return LEFT
-		else:#priority to longitudinal movement
-	    	    if wormCoords[HEAD]['y'] < central_destination['y'] and currentDirection is not UP:
-		        return DOWN
-	    	    if wormCoords[HEAD]['y'] < central_destination['y'] and currentDirection is not DOWN:
-		        return UP
-	    
+
 
 	#small chance of a random turn
-	if random.randint(0, 100)%7 == 0:#change of a random turn
+	if random.randint(0, 100)%11 == 0:#change of a random turn
 		if random.randint(0, 100)%2 == 0:#chance for a vertical or horizontal turn
 			if random.randint(0, 100)%2 == 0:
 				if currentDirection is not LEFT and wormCoords[HEAD]['x'] != CELLWIDTH - 1:
@@ -380,30 +433,32 @@ class Apple:
 	    self.position = getRandomLocation()
 	    self.life = random.randint(30, 150) #will last this many frames
 	if apple_mode is 4:#change between modes 1, 2, and 3
-	    self.position = getRandomLocation(apple_quadrant)
-	    self.life = random.randint(30, 150) #will last this many frames
+	    self.position = getRandomLocation()
+	    self.life = random.randint(30, 1500) #1500 is effectively infinite
 	if apple_mode is 5:#appear in single quadrant
 	    self.position = getRandomLocation(apple_quadrant)
 	    self.life = 1
 	if apple_mode is 6:#appear in changing quadrant
 	    self.position = getRandomLocation(apple_quadrant)
 	    self.life = 1
+	if apple_mode is 7:#appear in one small "tree" location
+	    self.position = getRandomLocation(5)
+	    self.life = 1
     def cycle(self, apple_quad):
-	if apple_mode is 2 or apple_mode is 3:# finite life
+	if apple_mode is 2 or apple_mode is 3 or apple_mode is 4:# finite life
             self.life -= 1
 	if self.life is -1:
 	    self.position = getRandomLocation()
-	    if apple_mode is 2 or apple_mode is 3:#assign new lifetimes
+	    if apple_mode is 2 or apple_mode is 3 or apple_mode is 4:#assign new lifetimes
 		if apple_mode is 2:
 		    self.life = 50
-		else:#apple_mode is 3 - range of lifetimes possible
+		elif apple_mode is 3:#apple_mode is 3 - range of lifetimes possible
 		    self.life = random.randint(30, 150)
+		elif apple_mode is 4:
+		    self.life = random.randint(30, 1500)
 	if apple_mode is 6:
 	    if random.randint(0, 2000000)%2011 is 0:
-		print apple_quad
-		print "randomly changing apple spawing quadrant"
-		apple_quad = random.randint(0, 2000000)%5
-		print apple_quad
+		apple_quad = random.randint(1, 2000000)%5
 	return apple_quad
 
 def getRandomLocation(quadrant=0):
@@ -417,6 +472,8 @@ def getRandomLocation(quadrant=0):
 	return {'x': random.randint(0, (CELLWIDTH - 1)/2), 'y': random.randint((CELLHEIGHT - 1)/2, CELLHEIGHT - 1)}
     elif quadrant is 4:
 	return {'x': random.randint((CELLWIDTH - 1)/2, CELLWIDTH - 1), 'y': random.randint((CELLHEIGHT - 1)/2, CELLHEIGHT - 1)}
+    elif quadrant is 5:#only spawn in a small "tree" area (hardcoded location)
+	return {'x': random.randint((CELLWIDTH - 1)/4, (CELLWIDTH - 1)/2), 'y': random.randint((CELLHEIGHT - 1)/4, (CELLHEIGHT - 1)/2)}
 
 def penalty(penalty_worm, free_worm, penalty_player):#take 2 off first argument worm
     print "penalty on ", penalty_player
