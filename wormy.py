@@ -6,15 +6,15 @@
 import random, pygame, sys, math
 from pygame.locals import *
 
-#FPS = 40
-FPS = 4
+FPS = 40
+#FPS = 4
 WINDOWWIDTH = 720
 WINDOWHEIGHT = 540
 CELLSIZE = 20
 NUM_APPLES = 10
 NUM_WORMS = 2
 NEIGHBORHOOD = 5
-TIME_LIMIT = 1000
+TIME_LIMIT = 300
 CENTRALIZED = True
 assert WINDOWWIDTH % CELLSIZE == 0, "Window width must be a multiple of cell size."
 assert WINDOWHEIGHT % CELLSIZE == 0, "Window height must be a multiple of cell size."
@@ -60,7 +60,7 @@ def main():
     timeLapsed = 0
     applesEaten = 0
     applesDisappeared = 0
-    global central_destination, frenzy_remaining
+    global central_destination, frenzy_remaining, CENTRALIZED
     central_destination = {}
     frenzy_remaining = 0
 
@@ -70,14 +70,14 @@ def main():
     for app_mode in xrange(1, 8):#try all apple modes
 	apple_mode = app_mode
 	print "\n\napple mode:", apple_mode
-	for centralized in xrange(1,2):#try centralized and decentralized
+	for centralized in xrange(0,2):#try centralized and decentralized
 	    if centralized is 0:
 		CENTRALIZED = False
 	    else:
 		CENTRALIZED = True
 	    print "Centralized:", CENTRALIZED
 	    #for neighborhood in xrange(3,
-	    for run in xrange(0,20):#trials
+	    for run in xrange(0,3):#trials
                 runGame()
                 showGameOverScreen()
 	    print "Average Score:", total_score/(total_runs * 1.0)
@@ -92,7 +92,7 @@ def runGame():
     timeLapsed = 0
 
     global autoOn, total_score, total_runs
-    global central_destination, frenzy_remaining
+    global central_destination, frenzy_remaining, CENTRALIZED
     # Set a random start point.
     #startx = random.randint(5, CELLWIDTH - 6)
     #starty = random.randint(5, CELLHEIGHT - 6)
@@ -324,7 +324,7 @@ def getAutoDirection(wormCoords, currentDirection, apples):
 	    #if random.randint(0, 2000)%3 == 0:#artificial limitation - simulates communication latency
 	#	pass
 	    # if 'x' in central_destination:
-		# if random.randint(0, 20)%2 == 0:#priority to lateral movement
+		# if abs(wormCoords[HEAD]['x'] - destination['x']) > abs(wormCoords[HEAD]['y'] - destination['y']):#priority to lateral movement
 	    # 	    if wormCoords[HEAD]['x'] < central_destination['x'] and currentDirection is not LEFT:
 		#         return RIGHT
 	    # 	    if wormCoords[HEAD]['x'] > central_destination['x'] and currentDirection is not RIGHT:
@@ -339,16 +339,14 @@ def getAutoDirection(wormCoords, currentDirection, apples):
 	    destination = {}
 	    for apple in apples:
 		dist = math.sqrt(abs((wormCoords[HEAD]['x'] - apple.position['x'])**2) + abs((wormCoords[HEAD]['y'] - apple.position['y'])**2))
-		print "dist", dist
 		if dist < closest_euclid:
 		    closest_euclid = dist
 		    destination['x'] = apple.position['x']
 		    destination['y'] = apple.position['y']
-		    print "destination",  destination
 
 
 	    if 'x' in destination:
-		if random.randint(0, 20)%2 == 0:#priority to lateral movement
+		if abs(wormCoords[HEAD]['x'] - destination['x']) > abs(wormCoords[HEAD]['y'] - destination['y']):#priority to lateral movement
 	    	    if wormCoords[HEAD]['x'] < destination['x'] and currentDirection is not LEFT:
 		        return RIGHT
 	    	    if wormCoords[HEAD]['x'] > destination['x'] and currentDirection is not RIGHT:
@@ -359,9 +357,32 @@ def getAutoDirection(wormCoords, currentDirection, apples):
 	    	    if wormCoords[HEAD]['y'] > destination['y'] and currentDirection is not DOWN:
 		        return UP
 
-	if CENTRALIZED:
-	    print "Death to centralizatoin"
-	    return currentDirection
+    	    #collisions continued
+    	    #left edge
+    	    if wormCoords[HEAD]['x'] == 0 and currentDirection is LEFT:
+    		if random.randint(0, 100)%2 == 0:
+    		    return UP
+    		else:
+    		    return DOWN
+    	    #right edge
+    	    if wormCoords[HEAD]['x'] == CELLWIDTH - 1 and currentDirection is RIGHT:
+    		if random.randint(0, 100)%2 == 0:
+    		    return UP
+    		else:
+    	 	    return DOWN
+    	    #top edge
+    	    if wormCoords[HEAD]['y'] == 0 and currentDirection is UP:
+    		if random.randint(0, 100)%2 == 0:
+    		    return RIGHT
+    		else:
+    		    return LEFT
+    	    #bottom edge
+    	    if wormCoords[HEAD]['y'] == CELLHEIGHT - 1 and currentDirection is DOWN:
+    		if random.randint(0, 100)%2 == 0:
+    		    return RIGHT
+    		else:
+    		    return LEFT
+    	    return currentDirection
 
 
 	# make it turn left if it passes an apple on the left, etc
