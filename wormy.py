@@ -13,8 +13,8 @@ WINDOWHEIGHT = 540
 CELLSIZE = 20
 NUM_APPLES = 10
 NUM_WORMS = 2
-NEIGHBORHOOD = 5
-TIME_LIMIT = 300
+NEIGHBORHOOD = 7
+TIME_LIMIT = 1000
 CENTRALIZED = True
 assert WINDOWWIDTH % CELLSIZE == 0, "Window width must be a multiple of cell size."
 assert WINDOWHEIGHT % CELLSIZE == 0, "Window height must be a multiple of cell size."
@@ -70,6 +70,8 @@ def main():
     for app_mode in xrange(1, 8):#try all apple modes
 	apple_mode = app_mode
 	print "\n\napple mode:", apple_mode
+	centralized_score = 0
+	decentralized_score = 0
 	for centralized in xrange(0,2):#try centralized and decentralized
 	    if centralized is 0:
 		CENTRALIZED = False
@@ -77,12 +79,17 @@ def main():
 		CENTRALIZED = True
 	    print "Centralized:", CENTRALIZED
 	    #for neighborhood in xrange(3,
-	    for run in xrange(0,3):#trials
+	    for run in xrange(0,10):#trials
                 runGame()
                 showGameOverScreen()
+	    if CENTRALIZED:
+		centralized_score = total_score
+	    else:
+		decentralized_score = total_score
 	    print "Average Score:", total_score/(total_runs * 1.0)
     	    total_score = 0
             total_runs = 0
+	print "Centralized to Decentralized ratio:", centralized_score/(decentralized_score * 1.0)
 
 
 def runGame():
@@ -230,6 +237,7 @@ def runGame():
 		del worm.coords[-1] 		#remove worm's tail segment (not a penalty, just how movement works)
 	    else:
 		worm.apple_eaten = False 	#don't cut the tail, but reset the flag
+		worm.apple_destination = None
 
 	#get rid of empty worms
 	worms = [worm for worm in worms if len(worm.coords ) != 0]
@@ -244,7 +252,7 @@ def runGame():
         # move the worm by adding a segment in the direction it is moving
 	for worm in worms:
 	    if autoOn is True:
-		worm.direction = getAutoDirection(worm.coords, worm.direction, apples)
+		worm.direction = getAutoDirection(worm.coords, worm.direction, apples, worm)
 
             if worm.direction == UP:
                 newHead = {'x': worm.coords[HEAD]['x'], 'y': worm.coords[HEAD]['y'] - 1}
@@ -269,7 +277,7 @@ def runGame():
 	    if apple.life == 0:
 		applesDisappeared += 1
 	    else:
-		drawApple(apple.position)
+		drawApple(apple)
 	    apple_quadrant = apple.cycle(apple_quadrant)
 
 	#score = (applesEaten - applesDisappeared)/NUM_APPLES
@@ -289,13 +297,14 @@ class Worm:
 	self.coords = coordinates
 	self.direction = startDirection
 	self.apple_eaten = False
+	self.apple_destination = None
 	self.frenzy_ratio = 1 #whether I'm  eating a lot of apples at the moment - this is for the centralized controller
     def split(self):
 	newWormCoords = self.coords[6:]
 	del self.coords[4:]
 	return newWormCoords, RIGHT
 
-def getAutoDirection(wormCoords, currentDirection, apples):
+def getAutoDirection(wormCoords, currentDirection, apples, worm):
 	#collisions
 	#corner cases first
 	if wormCoords[HEAD]['x'] == 0 and wormCoords[HEAD]['y'] == 0:#top left
@@ -321,8 +330,9 @@ def getAutoDirection(wormCoords, currentDirection, apples):
 
 	#if centralized control is activated, go in the direction of the frenzy if there is one
 	if CENTRALIZED:
-	    #if random.randint(0, 2000)%3 == 0:#artificial limitation - simulates communication latency
-	#	pass
+	    #if random.randint(0, 2000)%8 == 0:#artificial limitation - simulates communication latency
+		#return currentDirection
+
 	    # if 'x' in central_destination:
 		# if abs(wormCoords[HEAD]['x'] - destination['x']) > abs(wormCoords[HEAD]['y'] - destination['y']):#priority to lateral movement
 	    # 	    if wormCoords[HEAD]['x'] < central_destination['x'] and currentDirection is not LEFT:
@@ -334,28 +344,54 @@ def getAutoDirection(wormCoords, currentDirection, apples):
 		#         return DOWN
 	    # 	    if wormCoords[HEAD]['y'] > central_destination['y'] and currentDirection is not DOWN:
 		#         return UP
+	
+	    if worm.apple_destination is not None:#make sure the claimed apple still exists
+		if worm.apple_destination in apples:
+		    pass
+		else:
+		    worm.apple_destination = None
+
 	    #scan through apples, chase the closest one
-	    closest_euclid = 1000
-	    destination = {}
-	    for apple in apples:
-		dist = math.sqrt(abs((wormCoords[HEAD]['x'] - apple.position['x'])**2) + abs((wormCoords[HEAD]['y'] - apple.position['y'])**2))
-		if dist < closest_euclid:
-		    closest_euclid = dist
-		    destination['x'] = apple.position['x']
-		    destination['y'] = apple.position['y']
+	    if worm.apple_destination is None:
+		closest_euclid = 1000
+		destination = {}
+		final_apple_choice = None;
+		for apple in apples:
+		    dist = math.sqrt(abs((wormCoords[HEAD]['x'] - apple.position['x'])**2) + abs((wormCoords[HEAD]['y'] - apple.position['y'])**2))
+		    if dist < closest_euclid and apple.claimed is False:
+			closest_euclid = dist
+			final_apple_choice = apple
+	        worm.apple_destination = final_apple_choice			
+	
+	    if worm.apple_destination is not None:
+	    	worm.apple_destination.claimed = True
+	   	worm.apple_destination.still_claimed = 10
+	    	destination = worm.apple_destination.position
 
 
 	    if 'x' in destination:
 		if abs(wormCoords[HEAD]['x'] - destination['x']) > abs(wormCoords[HEAD]['y'] - destination['y']):#priority to lateral movement
-	    	    if wormCoords[HEAD]['x'] < destination['x'] and currentDirection is not LEFT:
-		        return RIGHT
-	    	    if wormCoords[HEAD]['x'] > destination['x'] and currentDirection is not RIGHT:
-		        return LEFT
+	    	    if wormCoords[HEAD]['x'] < destination['x']:
+			if currentDirection is not LEFT:
+		            return RIGHT
+			else:#otherwise it will keep going left and never turn around until it hits a wall
+			    return UP
+	    	    if wormCoords[HEAD]['x'] > destination['x']:
+			if currentDirection is not RIGHT:
+		            return LEFT
+			else:
+			    return UP
 		else:#priority to longitudinal movement
-	    	    if wormCoords[HEAD]['y'] < destination['y'] and currentDirection is not UP:
-		        return DOWN
-	    	    if wormCoords[HEAD]['y'] > destination['y'] and currentDirection is not DOWN:
-		        return UP
+	    	    if wormCoords[HEAD]['y'] < destination['y']:
+			if currentDirection is not UP:
+		            return DOWN
+			else:
+			    return RIGHT
+	    	    if wormCoords[HEAD]['y'] > destination['y']:
+			if currentDirection is not DOWN:
+		            return UP
+			else:
+			    return RIGHT
 
     	    #collisions continued
     	    #left edge
@@ -465,7 +501,13 @@ class Apple:
 	if apple_mode is 7:#appear in one small "tree" location
 	    self.position = getRandomLocation(5)
 	    self.life = 1
+	self.claimed = False
+	self.still_claimed = 10
     def cycle(self, apple_quad):
+	self.still_claimed -= 1
+	if self.still_claimed is 0:
+	    self.claimed = False
+	    self.still_claimed = 10
 	if apple_mode is 2 or apple_mode is 3 or apple_mode is 4:# finite life
             self.life -= 1
 	if self.life is -1:
@@ -622,11 +664,15 @@ def drawWorm(wormCoords, player=1):
             #pygame.draw.rect(DISPLAYSURF, BLUE, wormInnerSegmentRect)
 
 
-def drawApple(coord):
+def drawApple(apple):
+    coord = apple.position
     x = coord['x'] * CELLSIZE
     y = coord['y'] * CELLSIZE
     appleRect = pygame.Rect(x, y, CELLSIZE, CELLSIZE)
-    pygame.draw.rect(DISPLAYSURF, RED, appleRect)
+    if apple.claimed:
+        pygame.draw.rect(DISPLAYSURF, BLUE, appleRect)
+    else:	
+        pygame.draw.rect(DISPLAYSURF, RED, appleRect)
 
 
 def drawGrid():
